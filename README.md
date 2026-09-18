@@ -1,5 +1,7 @@
 # Hand / Material
 
+IF YOU WANT TO TRY IT CLICK ON THIS LINK https://mmjohnz.github.io/Hand-physics-simulator/
+
 A browser playground with natural, shaded hands, two-hand camera tracking, and physical props.
 
 ## Run
