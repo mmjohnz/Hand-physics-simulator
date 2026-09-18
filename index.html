@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#10171c">
+  <title>Hand / Material — Physics playground</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="stage" aria-label="Hand-controlled physical objects"></canvas>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-mark">H/M</span> HAND / MATERIAL</a>
+    <div class="top-actions">
+      <span class="system-status"><i id="systemDot"></i><span id="systemText">CAMERA OFF</span></span>
+      <button id="soundButton" aria-pressed="true">Sound on</button>
+      <button id="fullscreenButton">Fullscreen ↗</button>
+    </div>
+  </header>
+  <section class="scene-heading">
+    <span class="eyebrow" id="sceneIndex">MATERIAL STUDY / 01</span>
+    <h1 id="sceneTitle">Fragile by nature.</h1>
+    <p id="sceneDescription">Strike the pane. Watch the fracture travel.</p>
+  </section>
+  <aside class="materials" aria-label="Choose an object">
+    <div class="panel-heading"><span>THE MATERIALS</span><span>03</span></div>
+    <button class="item-button selected" data-item="glass" aria-pressed="true">
+      <span class="item-art art-glass" aria-hidden="true"></span>
+      <span class="item-copy"><strong>Glass pane</strong><small>Impact / fracture</small></span><span class="item-number">01</span>
+    </button>
+    <button class="item-button" data-item="banana" aria-pressed="false">
+      <span class="item-art art-banana" aria-hidden="true"></span>
+      <span class="item-copy"><strong>Banana</strong><small>Grip / peel / tear</small></span><span class="item-number">02</span>
+    </button>
+    <button class="item-button" data-item="bottle" aria-pressed="false">
+      <span class="item-art art-bottle" aria-hidden="true"></span>
+      <span class="item-copy"><strong>Water bottle</strong><small>Unscrew / invert / pour</small></span><span class="item-number">03</span>
+    </button>
+    <div class="object-state"><span>OBJECT STATE</span><output id="objectStatus">Mounted pane</output><meter id="waterMeter" min="0" max="500" value="500" hidden aria-label="Water remaining"></meter></div>
+    <button class="reset-button" id="resetButton">↻ Reset object</button>
+    <div class="instructions"><span>WITH YOUR HANDS</span><p id="instructionsText">Close your fist and strike through the pane. A light touch will not break it.</p></div>
+    <details class="pointer-help"><summary>Try with a mouse</summary><p id="pointerHelp">Click the pane to strike it. Drag fallen fragments to pick them up.</p></details>
+  </aside>
+  <aside class="camera-panel" aria-label="Camera controls and preview">
+    <div class="camera-frame">
+      <video id="webcam" autoplay playsinline muted></video><canvas id="handOverlay"></canvas>
+      <div id="cameraPlaceholder">YOUR HANDS, HERE<span>Two hands supported</span></div>
+      <span class="camera-label" id="cameraCount">0 / 2 HANDS</span>
+    </div>
+    <button id="cameraButton"><span id="cameraButtonText">Enable camera</span><span>↗</span></button>
+    <small>Processed on your device.</small>
+  </aside>
+  <div class="interaction-hint"><span class="hint-dot"></span><span id="interactionHint">Move naturally. Objects have weight.</span></div>
+  <footer><span>HANDS IN MOTION. MATTER IN RESPONSE.</span><span>GRAVITY · JOINTS · COLLISIONS</span></footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="node_modules/matter-js/build/matter.min.js"></script>
+  <script src="physics.js"></script>
+  <script src="render.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
