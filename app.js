@@ -274,8 +274,9 @@
     visionRuntimePromise=(async()=>{
       const runtimeVersion='0.10.35',cdnBase='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+runtimeVersion,unpkgBase='https://unpkg.com/@mediapipe/tasks-vision@'+runtimeVersion;
       const local={bundle:new URL('./node_modules/@mediapipe/tasks-vision/vision_bundle.mjs',location.href).href,wasm:new URL('./node_modules/@mediapipe/tasks-vision/wasm',location.href).href};
+      const vendored={bundle:new URL('./vendor/mediapipe/tasks-vision/vision_bundle.mjs',location.href).href,wasm:new URL('./vendor/mediapipe/tasks-vision/wasm',location.href).href};
       const remote=[{bundle:cdnBase+'/vision_bundle.mjs',wasm:cdnBase+'/wasm'},{bundle:unpkgBase+'/vision_bundle.mjs',wasm:unpkgBase+'/wasm'}];
-      const sources=location.hostname.endsWith('github.io')?remote:[local,...remote];
+      const sources=location.hostname.endsWith('github.io')?[vendored,...remote]:[local,vendored,...remote];
       let lastError;
       for(const source of sources) {
         try {
