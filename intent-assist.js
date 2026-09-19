@@ -4,7 +4,7 @@
   const storageKey='hand-material-intent-v1';
   class IntentAssistant {
     constructor(onStatus){
-      this.onStatus=onStatus;this.generation=1;this.epoch=0;this.scored=new Map();this.history=new Map();this.lastRequest=-Infinity;
+      this.onStatus=onStatus;this.generation=1;this.epoch=0;this.scored=new Map();this.history=new Map();this.menuHistory=new Map();this.lastRequest=this.lastMenuRequest=-Infinity;
       this.settings={radius:56,pinch:.42,actions:0,successes:0};this.available=false;
       let saved;try{saved=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{}
       try{
@@ -24,13 +24,22 @@
         this.worker.postMessage({type:'init',generation:this.generation,saved});
       }catch{this.onStatus(null);}
     }
-    resetScene(){this.epoch++;this.scored.clear();this.history.clear();}
+    resetScene(){this.epoch++;this.scored.clear();this.history.clear();this.menuHistory.clear();}
     forget(){
       this.generation++;this.resetScene();this.settings={radius:56,pinch:.42,actions:0,successes:0};
       try{localStorage.removeItem(storageKey);}catch{}
       this.worker?.postMessage({type:'init',generation:this.generation,saved:null});this.onStatus(this.settings);
     }
     learn(sample){if(this.available)this.worker.postMessage({type:'learn',generation:this.generation,sample});}
+    menuIntent(id,target,point,rect,now){
+      const key=target.id||target.dataset.item||'control',previous=this.menuHistory.get(id),dt=previous?Math.max(.012,(now-previous.time)/1000):.03;
+      const same=previous?.key===key,speed=previous&&same?distance(point,previous.point)/dt:900,hover=same?(previous.hover+dt):0;
+      const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,centered=clamp(1-Math.hypot(point.x-cx,point.y-cy)/Math.max(24,Math.hypot(rect.width,rect.height)*.55),0,1);
+      const features=[1,clamp(hover/.42,0,1),clamp(1-speed/760,0,1),centered,target.classList?.contains('item-button')?1:0,clamp(this.settings.successes/18,0,1)];
+      this.menuHistory.set(id,{key,point:{...point},time:now,hover});const groupId='menu:'+id,scored=this.scored.get(groupId),confidence=scored&&now-scored.at<450?(scored.scores.find(s=>s.key===key)?.confidence||0):0;
+      if(this.available&&now-this.lastMenuRequest>72){this.lastMenuRequest=now;this.worker.postMessage({type:'score',generation:this.generation,epoch:this.epoch,at:now,groups:[{id:groupId,candidates:[{key,kind:'menu',features}]}]});}
+      return {features,confidence,hover};
+    }
     targets(sim){
       const out=[];
       if(sim.banana){
@@ -47,7 +56,7 @@
       const targets=this.targets(sim),groups=[];
       for(const actor of actors){
         actor.intent=null;actor.intentCandidates=[];
-        if(actor.uiActive||sim.grabs.has(actor.id))continue;
+        if(actor.id==='pointer'||actor.uiActive||sim.grabs.has(actor.id))continue;
         const previous=this.history.get(actor.id);
         const dt=previous?Math.max(.012,(now-previous.time)/1000):.03;
         const otherHolding=Array.from(sim.grabs.entries()).some(([id,g])=>id!==actor.id&&g.kind==='body');
@@ -71,7 +80,7 @@
         }
         groups.push({id:actor.id,candidates:actor.intentCandidates.map(c=>({key:c.key,kind:c.kind,features:c.features}))});
       }
-      const ids=new Set(actors.map(a=>a.id));for(const id of this.history.keys())if(!ids.has(id)){this.history.delete(id);this.scored.delete(id);}
+      const ids=new Set(actors.map(a=>a.id));for(const id of this.history.keys())if(!ids.has(id)){this.history.delete(id);this.scored.delete(id);this.menuHistory.delete(id);this.scored.delete('menu:'+id);}
       if(this.available&&groups.length&&now-this.lastRequest>90){this.lastRequest=now;this.worker.postMessage({type:'score',generation:this.generation,epoch:this.epoch,at:now,groups});}
     }
   }

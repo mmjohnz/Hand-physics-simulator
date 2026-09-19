@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-Open http://localhost:4173. The physics engine is installed locally. Camera tracking downloads a pinned MediaPipe model on first use; camera frames are processed on the device. Use localhost or HTTPS.
+Open http://localhost:4173. An animated **Hand Physics Simulator — made by MMZ** introduction plays on launch. The physics engine is installed locally. Camera tracking downloads the MediaPipe hand and face-landmark models on first use; both use one shared modern runtime and camera frames are then processed on the device. Use localhost or HTTPS.
 
 ## Objects
 
@@ -19,21 +19,45 @@ Open http://localhost:4173. The physics engine is installed locally. Camera trac
 - **Banana:** hold the body with one hand. Pinch the stem with your other hand and pull away to remove one of three separate peel strips. Each strip is a chain of physical joints. As you pull, its attachments release progressively; the detached strip bends and falls. Repeat for the remaining strips.
 - **Water bottle:** hold the body with one hand. Pinch the cap and turn your other wrist clockwise to unscrew it. Release the cap, grab the bottle, and rotate your wrist to turn its mouth down. Water only leaves an open, inverted bottle with water at the mouth. It starts at 500 ml, loses water and mass while pouring, and stops when empty or upright.
 
+## Mouth interactions
+
+Enable the camera and keep your face visible. The tracked mouth follows your real mouth and detects when it is open.
+
+- Peel the banana, open your mouth, and put its tip inside the large tracked mouth. Close your mouth to take a bite; every bite leaves a visible scalloped chunk missing from the fruit. Move it away, open your mouth, and repeat. Four bites finish the banana.
+- Remove the bottle cap, open your mouth, and bring the held bottle opening to it. Each sip removes 90 ml from the bottle.
+- Bringing a held glass shard to an open mouth adds a small, non-graphic blood mark. Resetting or changing the object clears it.
+
+Move the object away between bites or sips, then bring it back for the next one.
+
 Use **Reset object** (or R) to restore the selected object. Item buttons animate and play quiet sounds; the sound control immediately mutes the audio output.
 
-## Mouse controls
+## Material cards
 
-Mouse controls work while the camera is off.
+The right-side Glass, Banana, and Water bottle controls are separate physical **cards** (also commonly called buttons, menu items, or a control panel).
 
-- Glass: click the pane to strike it; drag shards.
-- Banana: drag the stem to pull a strip, or drag the fruit body.
-- Bottle: hold the cap and scroll down (or press E repeatedly) to unscrew it. Release it, then grab the body. Scroll or use Q/E while holding to rotate.
+- Point at a card, then pinch once to click it immediately—there is no hold delay. The card and icon spring, flash, and play a click sound.
+- Pinch and carry a card completely out of the sidebar and across the main stage; it is rendered in the same free interaction layer as the scene instead of being clipped inside the menu.
+- Catch the floating card with your second tracked hand, then pull your hands apart. It stretches, narrows, bends, and wobbles like rubber before ripping into two jagged physical pieces.
+- Each half follows the hand holding it, then drops when released.
+- Select **Undo torn cards** to rebuild every ripped card.
+
+Camera-tracked hands render above the cards, so fingers stay visible while pointing, pinching, dragging, or tearing.
 
 ## Physics and rendering
 
 This is a 2D simulation, with shaded canvas drawings, not a scanned hand mesh or a full 3D fluid solver. Matter.js handles rigid-body collisions, momentum, spring grabs, and articulated joints in the hands and peels. The bottle's fluid uses a volume-conserving horizontal free surface clipped to the rotated vessel; escaping droplets follow gravity and form a splash/puddle.
 
-Hand tracking uses a pretrained MediaPipe model and does not learn or record personal gestures. Up to two detected hands are matched across frames. Turning a wrist in the camera plane rotates a held object. Occlusion and camera angle can affect tracking; tracking loss releases held objects.
+Hand tracking and mouth landmarks use pretrained MediaPipe models. Up to two detected hands are matched across frames, and one face supplies mouth position and openness. Turning a wrist in the camera plane rotates a held object. Occlusion and camera angle can affect tracking; tracking loss releases held objects.
+
+## Hands-only selection and local learning
+
+After enabling the camera, point your index fingertip at Glass pane, Banana, or Water bottle. Pinch after briefly hovering, or hold still for one second to select. A light-blue ring shows selection progress. Release an object before selecting another. Reset and sound also work with your hand; resets use a longer hold. Browser security still requires a real click/tap to enable the camera or enter fullscreen.
+
+The hands have fuller fingers, wrists, and subtle palm shading. The banana stem has a forgiving grab area; pulling about 190 logical stage units removes a strip. Small pinch-detection interruptions are buffered for 90 ms. Re-grab a partly peeled strip at its loose end.
+
+A small online logistic classifier runs in a Web Worker. It estimates menu click versus card drag/tear intent as well as hold/peel/cap intent from proximity, approach, hover, stillness, centering, pinch strength, and whether the other hand is holding the object. Successful single-pinch clicks and completed physical actions provide positive examples; deliberate card movement and abandoned attempts provide negative examples. Learned confidence shortens the click response and adjusts bounded grab assistance. It never performs a peel or twist for you.
+
+Only numeric model weights and aggregate calibration statistics are saved in this browser's local storage. No video, images, or hand-motion recordings are stored or sent to an AI server. **Reset learning** clears the learned profile. The MediaPipe tracker itself is not retrained; this lightweight intent assistant is not a general-purpose AI or a guarantee of recognizing every intention. Basic interactions remain available if the worker fails.
 
 ## Verification
 
@@ -43,5 +67,4 @@ npm test
 npm run test:browser
 ```
 
-Node tests cover fracture/settling, individual peel detachment, wrist rotation/release, cap gating, conserved water volume and upright/inverted pouring. Playwright uses installed Chrome for desktop/mobile UI checks, the full mouse bottle sequence, model initialization and synthetic two-hand input. Synthetic hand tests do not replace testing with real hands and a webcam.
-
+Node tests cover fracture/settling, individual peel detachment, eating, wrist rotation/release, cap gating, drinking, conserved water volume and upright/inverted pouring. Playwright uses installed Chrome for desktop/mobile UI checks, model initialization, mouth interactions, card tearing, undo, and synthetic two-hand input. Synthetic camera tests do not replace testing with real hands, a face, and a webcam.

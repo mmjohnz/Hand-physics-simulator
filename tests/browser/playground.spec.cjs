@@ -1,4 +1,8 @@
 const {test,expect}=require('@playwright/test');
+test('animated MMZ intro presents the simulator and clears automatically',async({page})=>{
+  await page.goto('/');await expect(page.locator('.intro-title')).toContainText('HANDPHYSICSSIMULATOR');await expect(page.locator('.intro-credit')).toHaveText('MADE BY MMZ');
+  await page.waitForTimeout(1100);await page.screenshot({path:'.preview/intro-mmz.png'});await expect(page.locator('.intro-screen')).toBeHidden({timeout:5000});
+});
 test('mouse can unscrew, lift, invert and partially empty the bottle',async({page})=>{
   await page.goto('/');await page.locator('[data-item="bottle"]').click();
   await page.waitForTimeout(1100);
@@ -28,7 +32,7 @@ test('all three materials render; pane shatters through pointer input; mobile co
   await expect(page.locator('#objectStatus')).toContainText('physical shards');
   await page.waitForTimeout(600);await page.screenshot({path:'.preview/shattered.png'});
   await page.locator('[data-item="banana"]').click();
-  await expect(page.locator('#objectStatus')).toHaveText('0 / 3 peel strips removed');
+  await expect(page.locator('#objectStatus')).toContainText('0 / 3 peel strips removed');
   await page.waitForTimeout(800);await page.screenshot({path:'.preview/banana.png'});
   await page.locator('[data-item="bottle"]').click();
   await expect(page.locator('#objectStatus')).toContainText('500 / 500 ml');
@@ -37,7 +41,7 @@ test('all three materials render; pane shatters through pointer input; mobile co
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'.preview/mobile.png'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
-  for(const selector of ['#cameraButton','#resetButton','[data-item="glass"]','[data-item="banana"]','[data-item="bottle"]']){
+  for(const selector of ['#cameraButton','#resetButton','#undoTears','[data-item="glass"]','[data-item="banana"]','[data-item="bottle"]']){
     const bounds=await page.locator(selector).boundingBox();expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(391);
   }
   expect(errors).toEqual([]);
@@ -52,6 +56,7 @@ test('two synthetic tracked hands produce articulated natural hands without runt
       setOptions(o){window.trackerOptions=o;}onResults(cb){this.cb=cb;}async initialize(){}
       async send(){this.cb({multiHandLandmarks:[hand(.28,1),hand(.72,-1)],multiHandedness:[{label:'Left'},{label:'Right'}]});}
     };
+    window.MediaPipeVision={FilesetResolver:{forVisionTasks:async()=>({})},FaceLandmarker:{createFromOptions:async()=>({detectForVideo:()=>({faceLandmarks:[]})})}};
     Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>new MediaStream()});
     HTMLMediaElement.prototype.play=async()=>{};
     Object.defineProperty(HTMLMediaElement.prototype,'readyState',{get:()=>2});

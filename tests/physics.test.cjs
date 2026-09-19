@@ -5,6 +5,57 @@ const P=require('../physics.js');
 const actor=(id,p,extra={})=>({id,palm:p,point:p,pinching:true,gripping:false,fist:false,angle:0,velocity:{x:0,y:0},...extra});
 const advance=(s,n=60)=>{for(let i=0;i<n;i++)s.step(1/60);};
 
+test('forgiving peel grab does not auto-peel and learns once after a real pull',()=>{
+  const s=new P.Simulation();s.select('banana');M.Body.setStatic(s.banana.body,true);
+  const strip=s.banana.strips[0],tip=P.world(s.banana.body,strip.tab),p={x:tip.x-40,y:tip.y};
+  const samples=[];s.onLearn=sample=>samples.push(sample);
+  const extra={intentCandidates:[{key:'peel-0',kind:'peel',features:[1,.6,.2,.5,.8,1],reach:40,pinch:.3}]};
+  s.setActors([actor('peel',p,extra)]);advance(s,60);
+  assert.equal(s.grabs.get('peel').strip,strip);assert.equal(strip.progress,0);assert.equal(samples.length,0);
+  s.setActors([actor('peel',{x:p.x-210,y:p.y},extra)]);advance(s,120);
+  assert.equal(strip.detached,true);assert.equal(s.banana.peeled,1);
+  assert.equal(samples.length,1);assert.equal(samples[0].success,true);
+  s.setActors([]);assert.equal(samples.length,1);
+});
+test('UI hands cannot break glass or grab objects',()=>{
+  const s=new P.Simulation();
+  s.setActors([actor('ui',{x:590,y:373},{uiActive:true,fist:true,velocity:{x:1000,y:0}})]);
+  assert.equal(s.pane.broken,false);assert.equal(s.grabs.size,0);
+  s.select('banana');s.setActors([actor('ui',s.banana.body.position,{uiActive:true})]);
+  assert.equal(s.grabs.size,0);
+});
+test('confident bounded assistance catches a nearby missed peel without peeling it',()=>{
+  const s=new P.Simulation();s.select('banana');M.Body.setStatic(s.banana.body,true);
+  const strip=s.banana.strips[0],tip=P.world(s.banana.body,strip.tab),p={x:tip.x-62,y:tip.y};
+  s.setActors([actor('near',p)]);assert.equal(s.grabs.size,0);
+  s.setActors([actor('near',p,{intent:{kind:'peel',radius:65}})]);
+  assert.equal(s.grabs.get('near').strip,strip);advance(s,60);assert.equal(strip.progress,0);
+});
+test('successful holds learn once, tracking loss is not labeled a failure',()=>{
+  const s=new P.Simulation();s.select('bottle');const samples=[];s.onLearn=x=>samples.push(x);
+  const extra={intentCandidates:[{key:'body',kind:'body',features:[1,1,0,0,.9,0],reach:0,pinch:.2}]};
+  s.setActors([actor('a',{...s.bottle.body.position},extra)]);advance(s,100);
+  assert.equal(samples.length,1);assert.equal(samples[0].success,true);
+  s.setActors([]);assert.equal(samples.length,1);
+  s.setActors([actor('b',{...s.bottle.body.position},extra)]);advance(s,10);s.setActors([]);
+  assert.equal(samples.length,1);
+});
+test('banana bites require peeling first and remove the fruit after four deliberate bites',()=>{
+  const s=new P.Simulation();s.select('banana');
+  assert.equal(s.eatBanana().ok,false);
+  s.banana.peeled=1;
+  for(let i=1;i<=4;i++){const result=s.eatBanana();assert.equal(result.ok,true);assert.equal(s.banana.bites,i);assert.equal(s.banana.biteMarks.length,i);assert.ok(s.banana.biteMarks[i-1].t>0&&s.banana.biteMarks[i-1].t<1);}
+  assert.equal(s.banana.eaten,true);assert.equal(s.status(),'Banana eaten');
+  assert.equal(s.eatBanana().ok,false);
+});
+test('drinking is cap-gated and preserves all finite bottle water',()=>{
+  const s=new P.Simulation();s.select('bottle');const b=s.bottle;
+  assert.equal(s.drinkBottle().ok,false);assert.equal(b.amount,500);
+  b.open=true;assert.equal(s.drinkBottle(90).ok,true);assert.equal(b.amount,410);assert.equal(b.drunk,90);
+  s.drinkBottle(1000);assert.equal(b.amount,0);assert.equal(b.drunk,500);
+  assert.ok(Math.abs(b.amount+b.poured+b.drunk-500)<1e-6);
+});
+
 test('gentle contact leaves glass intact; impact creates polygon shards which fall and collide',()=>{
   const s=new P.Simulation(),p={x:590,y:373};
   s.setActors([actor('a',p,{pinching:false,fist:true,velocity:{x:120,y:0}})]);

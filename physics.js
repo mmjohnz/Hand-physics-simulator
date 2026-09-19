@@ -86,7 +86,7 @@
       const parts=[];
       for(let i=0;i<=10;i++) {const p=bananaLine(i/10); parts.push(Bodies.circle(p.x,p.y,15+12*Math.sin(Math.PI*i/10)));}
       const body=this.compound(parts,{x:585,y:545},{density:.00065});
-      this.banana={body,strips:[],peeled:0};
+      this.banana={body,strips:[],peeled:0,bites:0,biteMarks:[],eaten:false};
       for(let s=0;s<3;s++) this.banana.strips.push({index:s,progress:0,detached:false,nodes:[],pins:[],links:[],active:false,tab:{x:-32+(s-1)*8,y:-156}});
     }
     makeBottle() {
@@ -94,7 +94,7 @@
         Bodies.rectangle(0,22,102,210,{chamfer:{radius:17}}),
         Bodies.trapezoid(0,-87,94,38,.5),Bodies.rectangle(0,-124,46,46)
       ],{x:585,y:565},{density:.0012,restitution:.13});
-      this.bottle={body,dryMass:body.mass*.3,waterMass:body.mass*.7,open:false,cap:null,capProgress:0,amount:500,poured:0,flow:0,liquid:liquid(body,500),slosh:0};
+      this.bottle={body,dryMass:body.mass*.3,waterMass:body.mass*.7,open:false,cap:null,capProgress:0,amount:500,poured:0,drunk:0,flow:0,liquid:liquid(body,500),slosh:0};
     }
     startPeel(strip) {
       const main=this.banana.body, group=Body.nextGroup(true);
@@ -114,7 +114,7 @@
       const rotatedOffset=sub(point,body.position);
       const joint=this.add(Constraint.create({pointA:{...point},bodyB:body,pointB:rotatedOffset,length:0,stiffness:.2,damping:.22}));
       const candidate=actor.intentCandidates?.find(c=>c.kind===kind&&(!strip||c.key==='peel-'+strip.index));
-      const feedback=candidate?{kind,features:[...candidate.features],reach:candidate.reach,pinch:candidate.pinch}:null;
+      const feedback=candidate?{kind,features:[...candidate.features],reach:candidate.reach,pinch:actor.pinching?candidate.pinch:undefined}:null;
       this.grabs.set(actor.id,{body,joint,goal:{...point},kind,strip,angleOffset:body.angle-actor.angle,previousAngle:actor.angle,pull:0,
         offset:sub(point,this.gripPoint(actor)),started:this.time,feedback,learned:false,
         peelOrigin:strip?local(this.banana.body,point):null,startProgress:strip?.progress||0});
@@ -129,12 +129,13 @@
       const g=this.grabs.get(id); if(!g)return;
       if(abandoned&&this.time-g.started>.4)this.confirm(g,false);
       if(g.joint) this.remove(g.joint);
-      if(g.body) g.body.collisionFilter.mask |= 4;
+      if(g.body&&![...this.grabs.entries()].some(([other,h])=>other!==id&&h.body===g.body)) g.body.collisionFilter.mask |= 4;
       this.grabs.delete(id);
     }
     tryGrab(actor) {
       const p=this.gripPoint(actor);
       if(this.item==='banana') {
+        if(this.banana.eaten)return;
         const radius=actor.intent?.kind==='peel'?clamp(actor.intent.radius,46,72):46;
         const ordered=[...this.banana.strips].sort((a,b)=>{
           const pa=a.active?a.nodes[10].position:world(this.banana.body,a.tab),pb=b.active?b.nodes[10].position:world(this.banana.body,b.tab);
@@ -169,6 +170,26 @@
         const hit=Query.point(this.shards.map(s=>s.body),p)[0];
         if(hit) this.attach(actor,hit,p,'shard');
       }
+    }
+    eatBanana() {
+      const b=this.banana;
+      if(!b||b.eaten)return {ok:false,message:'The banana is already gone.'};
+      if(b.peeled<1)return {ok:false,message:'Peel at least one strip before eating.'};
+      const biteIndex=b.bites;b.bites=Math.min(4,b.bites+1);b.biteMarks.push({t:[.9,.74,.58,.42][biteIndex],side:biteIndex%2?-.85:.85});this.onEvent('bite');
+      if(b.bites<4)return {ok:true,message:`Bite ${b.bites} / 4`};
+      for(const [id,grab] of [...this.grabs])if(grab.body===b.body)this.release(id);
+      for(const strip of b.strips){for(const pin of strip.pins)this.remove(pin);for(const link of strip.links)this.remove(link);for(const node of strip.nodes)this.remove(node);}
+      this.remove(b.body);b.eaten=true;
+      return {ok:true,message:'Banana eaten.'};
+    }
+    drinkBottle(amount=90) {
+      const b=this.bottle;
+      if(!b)return {ok:false,message:'No bottle to drink from.'};
+      if(!b.open)return {ok:false,message:'Open the cap before drinking.'};
+      if(b.amount<=.01)return {ok:false,message:'The bottle is empty.'};
+      const drunk=Math.min(amount,b.amount);b.amount-=drunk;b.drunk+=drunk;b.flow=0;b.liquid=liquid(b.body,b.amount);
+      if(!b.body.isStatic)Body.setMass(b.body,b.dryMass+b.waterMass*b.amount/500);
+      this.onEvent('drink');return {ok:true,message:`Drank ${Math.round(drunk)} ml`};
     }
     setActors(actors) {
       this.actors=actors.slice(0,2);
@@ -325,8 +346,8 @@
     }
     status() {
       if(this.item==='glass')return this.pane.broken ? `${this.shards.length} physical shards` : 'Mounted glass pane · strike with a moving fist';
-      if(this.item==='banana')return `${this.banana.peeled} / 3 peel strips removed`;
-      return `${Math.round(this.bottle.amount)} / 500 ml · ${this.bottle.open ? 'cap removed' : `cap ${Math.round(this.bottle.capProgress*100)}% unscrewed`}`;
+      if(this.item==='banana')return this.banana.eaten ? 'Banana eaten' : `${this.banana.peeled} / 3 peel strips removed · ${this.banana.bites} / 4 bites`;
+      return `${Math.round(this.bottle.amount)} / 500 ml · ${this.bottle.open ? `cap removed · ${Math.round(this.bottle.drunk)} ml drunk` : `cap ${Math.round(this.bottle.capProgress*100)}% unscrewed`}`;
     }
   }
   return {Simulation,world,local,liquid,clip,area,bananaLine,innerBottle,chains,clamp,distance,angleDelta,rotate};
