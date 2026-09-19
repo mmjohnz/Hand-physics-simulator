@@ -56,7 +56,7 @@ test('two synthetic tracked hands produce articulated natural hands without runt
       setOptions(o){window.trackerOptions=o;}onResults(cb){this.cb=cb;}async initialize(){}
       async send(){this.cb({multiHandLandmarks:[hand(.28,1),hand(.72,-1)],multiHandedness:[{label:'Left'},{label:'Right'}]});}
     };
-    window.MediaPipeVision={FilesetResolver:{forVisionTasks:async()=>({})},FaceLandmarker:{createFromOptions:async()=>({detectForVideo:()=>({faceLandmarks:[]})})}};
+    window.MediaPipeVision={FilesetResolver:{forVisionTasks:async()=>({})}};
     Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>new MediaStream()});
     HTMLMediaElement.prototype.play=async()=>{};
     Object.defineProperty(HTMLMediaElement.prototype,'readyState',{get:()=>2});

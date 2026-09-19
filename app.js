@@ -1,13 +1,13 @@
 (function () {
   'use strict';
   const $=id=>document.getElementById(id);
-  const {distance,clamp,angleDelta,world}=HandPhysics;
+  const {distance,clamp,angleDelta}=HandPhysics;
   const renderer=new HandRenderer($('stage')),handLayer=$('handLayer');
   const video=$('webcam'),overlay=$('handOverlay'),overlayCtx=overlay.getContext('2d');
   const config={
-    glass:{title:'Fragile by nature.',description:'Strike the pane. Watch the fracture travel.',instructions:'Close your fist and strike through the pane. Pinch a shard carefully—bringing it to your tracked mouth leaves a small blood mark.',pointer:'Click the pane to strike it. Drag fallen fragments to pick them up.',hint:'A moving fist breaks the pane. Keep sharp shards away from your mouth.'},
-    banana:{title:'One strip at a time.',description:'Hold the fruit. Pull. Let the peel fall.',instructions:'Peel at least one strip, hold the fruit, then bring it to your open tracked mouth. Move away and return for each bite.',pointer:'Drag a stem tip away to peel one strip. Mouse drag still works as a simple fallback.',hint:'Peel, grip the fruit, open your mouth and bring the fruit to it.'},
-    bottle:{title:'Follow the water.',description:'Open the cap. Turn the bottle upside down.',instructions:'Unscrew the cap, hold the bottle, open your mouth and bring the bottle opening to it. Move away and return for another sip.',pointer:'Drag the body to hold it. Scroll or use Q / E while holding to rotate.',hint:'Open the bottle, then bring its opening to your tracked mouth.'}
+    glass:{title:'Fragile by nature.',description:'Strike the pane. Watch the fracture travel.',instructions:'Close your fist and strike through the pane. Pinch a shard carefully.',pointer:'Click the pane to strike it. Drag fallen fragments to pick them up.',hint:'A moving fist breaks the pane. Keep sharp shards away from your hands.'},
+    banana:{title:'One strip at a time.',description:'Hold the fruit. Pull. Let the peel fall.',instructions:'Grip the fruit with one hand. Pinch the stem with your other hand and pull away to remove each peel strip.',pointer:'Drag a stem tip away to peel one strip. Mouse drag still works as a simple fallback.',hint:'Grip the banana, then pull each peel strip away.'},
+    bottle:{title:'Follow the water.',description:'Open the cap. Turn the bottle upside down.',instructions:'Unscrew the cap, hold the bottle, and rotate your wrist to turn its mouth down. Squeeze it with two hands to push water out.',pointer:'Drag the body to hold it. Scroll or use Q / E while holding to rotate.',hint:'Open the bottle, squeeze or invert it, and watch the water respond.'}
   };
   let audio=null,master=null,noise=null,muted=false;
   let lastWaterSound=0;
@@ -46,9 +46,6 @@
     if(kind==='tear')noiseSound(2200,.23,.26);
     if(kind==='cap'){noiseSound(3800,.06,.2);tone(470,.11,.12,'sine',260);}
     if(kind==='water'&&performance.now()-lastWaterSound>190){lastWaterSound=performance.now();noiseSound(1350,.32,.13);tone(160+Math.random()*100,.12,.06);}
-    if(kind==='bite'){noiseSound(520,.07,.08);tone(220,.11,.12,'triangle',160);}
-    if(kind==='drink'){noiseSound(1180,.2,.11);tone(330,.1,.08,'sine',220);}
-    if(kind==='mouthcut'){noiseSound(1850,.18,.2,'highpass');tone(115,.18,.12,'sawtooth',70);}
     if(kind==='cardtear'){noiseSound(2100,.26,.24);tone(180,.08,.08,'square',90);}
   }
   const sim=new HandPhysics.Simulation(effect);
@@ -56,14 +53,13 @@
   sim.onLearn=sample=>assistant.learn(sample);
   const menuGate=new HandIntent.MenuGate(),cursors=new Map(),cardGrips=new Map(),tornCards=new Map(),liftedCards=new Map(),floatingSources=new WeakMap(),cardPinchConsumed=new Set();
   let pairStarts=new WeakMap();
-  let cameraOn=false,starting=false,model=null,modelKind='',modelPromise=null,faceModel=null,facePromise=null,visionRuntimePromise=null,stream=null,session=0;
-  const macPerformance=/Macintosh|Mac OS X/i.test(navigator.userAgent),handInterval=macPerformance?45:32,faceInterval=macPerformance?135:95;
-  let cameraActors=[],nextHandId=1,lastDetection=0,inferenceBusy=false,faceBusy=false,lastHandSend=0,lastFaceSend=0;
-  let mouth=null,mouthBloody=false,mouthContact=false,mouthBiteArmed=false;
+  let cameraOn=false,starting=false,model=null,modelKind='',modelPromise=null,visionRuntimePromise=null,stream=null,session=0;
+  const macPerformance=/Macintosh|Mac OS X/i.test(navigator.userAgent),handInterval=macPerformance?45:32;
+  let cameraActors=[],nextHandId=1,lastDetection=0,inferenceBusy=false,lastHandSend=0;
   let pointer=null,toastTimer=0,oldStatus='';
   function showToast(message) {$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),5200);}
   function select(item) {
-    sim.select(item);assistant.resetScene();pointer=null;mouthBloody=false;mouthContact=false;mouthBiteArmed=false;$('trackedMouth').classList.remove('bloody','near','feeding');const c=config[item];
+    sim.select(item);assistant.resetScene();pointer=null;const c=config[item];
     $('sceneTitle').textContent=c.title;$('sceneDescription').textContent=c.description;
     $('sceneIndex').textContent='MATERIAL STUDY / 0'+({glass:1,banana:2,bottle:3}[item]);
     $('instructionsText').textContent=c.instructions;$('pointerHelp').textContent=c.pointer;$('interactionHint').textContent=c.hint;
@@ -74,47 +70,6 @@
   function updateStatus() {
     const text=sim.status();if(text!==oldStatus){$('objectStatus').textContent=text;oldStatus=text;}
     if(sim.bottle)$('waterMeter').value=sim.bottle.amount;
-  }
-  function updateTrackedMouth(){
-    const el=$('trackedMouth'),fresh=mouth&&performance.now()-mouth.seen<450;
-    if(!fresh){el.hidden=true;return;}
-    const visualWidth=clamp(mouth.width*1.55,112,230),visualHeight=clamp(mouth.width*.78,76,150),lip=clamp(mouth.width*.31,28,54);
-    el.hidden=false;el.style.left=mouth.x+'px';el.style.top=mouth.y+'px';el.style.width=visualWidth+'px';el.style.height=visualHeight+'px';el.style.setProperty('--mouth-lip',lip+'px');
-    el.style.setProperty('--mouth-open',clamp(5+mouth.ratio*visualHeight*1.35,6,58)+'px');el.classList.toggle('bloody',mouthBloody);el.classList.toggle('feeding',mouthBiteArmed);
-    $('mouthStatus').textContent=mouthBiteArmed?'BANANA IN MOUTH — CLOSE TO BITE':mouth.open?(mouthBloody?'MOUTH HURT':'MOUTH OPEN'):'OPEN YOUR MOUTH';
-  }
-  function acceptFaceResults(results){
-    if(!cameraOn)return;const points=results.multiFaceLandmarks?.[0],now=performance.now();
-    if(!points){updateTrackedMouth();return;}
-    const left=points[61],right=points[291],upper=points[13],lower=points[14];
-    const x=(1-(left.x+right.x)/2)*innerWidth,y=(upper.y+lower.y)/2*innerHeight;
-    const width=Math.hypot((right.x-left.x)*innerWidth,(right.y-left.y)*innerHeight),lipGap=Math.hypot((lower.x-upper.x)*innerWidth,(lower.y-upper.y)*innerHeight);
-    const ratio=lipGap/Math.max(1,width),alpha=mouth?.seen?0.42:1;
-    mouth={x:mouth?mouth.x+(x-mouth.x)*alpha:x,y:mouth?mouth.y+(y-mouth.y)*alpha:y,width:mouth?mouth.width+(width-mouth.width)*alpha:width,ratio,open:ratio>.105,seen:now};updateTrackedMouth();
-  }
-  function updateMouthInteraction(){
-    if(!mouth||performance.now()-mouth.seen>450){mouthContact=false;mouthBiteArmed=false;updateTrackedMouth();return;}
-    const radius=clamp(mouth.width*1.32,72,160);let closest=Infinity,action=null;
-    for(const [actorId,grab] of [...sim.grabs]){
-      let point=null,kind='';
-      if(sim.item==='banana'&&grab.kind==='body'&&grab.body===sim.banana?.body){point=world(grab.body,HandPhysics.bananaLine(.93));kind='banana';}
-      if(sim.item==='bottle'&&grab.kind==='body'&&grab.body===sim.bottle?.body){point=world(grab.body,{x:0,y:-139});kind='bottle';}
-      if(sim.item==='glass'&&grab.kind==='shard'){point=grab.body.position;kind='glass';}
-      if(!point)continue;const screen=renderer.toScreen(point),d=Math.hypot(screen.x-mouth.x,screen.y-mouth.y);
-      if(d<closest){closest=d;action={actorId,kind};}
-    }
-    const near=closest<radius*1.25;$('trackedMouth').classList.toggle('near',near);
-    if(!near){mouthContact=false;mouthBiteArmed=false;updateTrackedMouth();return;}
-    if(action?.kind==='banana'){
-      if(mouth.open&&!mouthContact){mouthBiteArmed=true;mouthContact=true;showToast('Banana is in your mouth — close your mouth to take a bite.');}
-      if(mouthBiteArmed&&!mouth.open){const result=sim.eatBanana();mouthBiteArmed=false;mouthContact=true;if(result)showToast(result.message);}
-      updateTrackedMouth();return;
-    }
-    if(!action||closest>=radius||!mouth.open||mouthContact){updateTrackedMouth();return;}
-    mouthContact=true;let result;
-    if(action.kind==='bottle')result=sim.drinkBottle();
-    if(action.kind==='glass'){mouthBloody=true;effect('mouthcut');result={message:'Ouch — the glass cut your mouth.'};}
-    if(result)showToast(result.message);updateTrackedMouth();
   }
   function syncActors() {
     const now=performance.now(),active=cameraActors.filter(a=>now-a.seen<220);
@@ -304,16 +259,6 @@
     })().catch(error=>{modelPromise=null;model=null;throw error;});
     return modelPromise;
   }
-  async function loadFaceModel(){
-    if(facePromise)return facePromise;
-    facePromise=(async()=>{
-      const {vision,files}=await loadVisionRuntime();
-      faceModel=await createVisionTask(vision.FaceLandmarker,files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'},runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.6,minFacePresenceConfidence:.6,minTrackingConfidence:.6,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:false});
-      const probe=document.createElement('canvas');probe.width=16;probe.height=16;faceModel.detectForVideo(probe,1);
-      $('trackedMouth').dataset.model='ready';
-    })().catch(error=>{facePromise=null;faceModel=null;$('trackedMouth').dataset.model='error';throw error;});
-    return facePromise;
-  }
   async function createVisionTask(factory,files,options) {
     const preferred=macPerformance?'GPU':'CPU',create=delegate=>factory.createFromOptions(files,{...options,baseOptions:{...options.baseOptions,delegate}});
     try{return await create(preferred);}catch(error){if(preferred!=='GPU')throw error;return create('CPU');}
@@ -321,12 +266,6 @@
   async function cameraFrame(generation) {
     if(!cameraOn||generation!==session)return;
     const frameTime=performance.now();
-    if(faceModel&&!faceBusy&&video.readyState>=2&&frameTime-lastFaceSend>faceInterval){
-      faceBusy=true;lastFaceSend=frameTime;
-      try{const result=faceModel.detectForVideo(video,frameTime);acceptFaceResults({multiFaceLandmarks:result.faceLandmarks||[]});}
-      catch{faceModel=null;mouth=null;$('trackedMouth').hidden=true;showToast('Mouth tracking stopped; hand controls still work.');}
-      finally{faceBusy=false;}
-    }
     if(!inferenceBusy&&video.readyState>=2&&frameTime-lastHandSend>handInterval) {
       inferenceBusy=true;
       lastHandSend=frameTime;
@@ -350,14 +289,13 @@
       stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960,max:1280},height:{ideal:540,max:720},facingMode:'user'},audio:false});
       video.srcObject=stream;await video.play();cameraOn=true;session++;
       $('cameraPlaceholder').classList.add('hidden');video.classList.add('visible');$('systemDot').classList.add('active');
-      $('systemText').textContent='TWO HANDS + MOUTH';$('cameraButtonText').textContent='Disable camera';
-      loadFaceModel().catch(error=>{console.error('Mouth tracker failed',error);showToast('Mouth tracking could not start. Refresh once and try again; hand controls still work.');});
+      $('systemText').textContent='TWO HANDS';$('cameraButtonText').textContent='Disable camera';
       cameraFrame(session);
     }catch(error){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;$('cameraButtonText').textContent='Try camera again';showToast(error.message);}
     finally{starting=false;$('cameraButton').disabled=false;}
   }
   function stopCamera() {
-    cameraOn=false;session++;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;cameraActors=[];mouth=null;mouthContact=false;mouthBiteArmed=false;faceBusy=false;$('trackedMouth').hidden=true;
+    cameraOn=false;session++;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;cameraActors=[];
     syncActors();drawOverlay([]);$('cameraPlaceholder').classList.remove('hidden');video.classList.remove('visible');$('systemDot').classList.remove('active');$('systemText').textContent='CAMERA OFF';$('cameraButtonText').textContent='Enable camera';
   }
 
@@ -397,7 +335,7 @@
     accumulator+=Math.min(.08,(time-previous)/1000);previous=time;
     if(cameraActors.length&&time-lastDetection>220){cameraActors=[];syncActors();drawOverlay([]);}
     while(accumulator>=1/60){sim.step(1/60);accumulator-=1/60;}
-    renderer.draw(sim);renderer.drawHands(sim,handLayer);updateMouthInteraction();updateStatus();requestAnimationFrame(animate);
+    renderer.draw(sim);renderer.drawHands(sim,handLayer);updateStatus();requestAnimationFrame(animate);
   }
   select('glass');
   requestAnimationFrame(animate);

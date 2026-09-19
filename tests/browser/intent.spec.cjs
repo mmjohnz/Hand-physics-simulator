@@ -13,7 +13,7 @@ test.beforeEach(async({page})=>{
         this.cb({multiHandLandmarks:f.visible?[points]:[],multiHandedness:[{label:'Right'}]});
       }
     };
-    window.MediaPipeVision={FilesetResolver:{forVisionTasks:async()=>({})},FaceLandmarker:{createFromOptions:async()=>({detectForVideo:()=>({faceLandmarks:[]})})}};
+    window.MediaPipeVision={FilesetResolver:{forVisionTasks:async()=>({})}};
     Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async()=>new MediaStream()});
     HTMLMediaElement.prototype.play=async()=>{};
     Object.defineProperty(HTMLMediaElement.prototype,'readyState',{get:()=>2});
