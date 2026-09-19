@@ -86,7 +86,7 @@
       const parts=[];
       for(let i=0;i<=10;i++) {const p=bananaLine(i/10); parts.push(Bodies.circle(p.x,p.y,15+12*Math.sin(Math.PI*i/10)));}
       const body=this.compound(parts,{x:585,y:545},{density:.00065});
-      this.banana={body,strips:[],peeled:0,bites:0,biteMarks:[],eaten:false};
+      this.banana={body,strips:[],peeled:0,bites:0,biteMarks:[],eaten:false,squash:0,bruise:0,squeezeMarks:[],bruiseMarks:[]};
       for(let s=0;s<3;s++) this.banana.strips.push({index:s,progress:0,detached:false,nodes:[],pins:[],links:[],active:false,tab:{x:-32+(s-1)*8,y:-156}});
     }
     makeBottle() {
@@ -94,7 +94,7 @@
         Bodies.rectangle(0,22,102,210,{chamfer:{radius:17}}),
         Bodies.trapezoid(0,-87,94,38,.5),Bodies.rectangle(0,-124,46,46)
       ],{x:585,y:565},{density:.0012,restitution:.13});
-      this.bottle={body,dryMass:body.mass*.3,waterMass:body.mass*.7,open:false,cap:null,capProgress:0,amount:500,poured:0,drunk:0,flow:0,liquid:liquid(body,500),slosh:0};
+      this.bottle={body,dryMass:body.mass*.3,waterMass:body.mass*.7,open:false,cap:null,capProgress:0,amount:500,poured:0,drunk:0,flow:0,pressure:0,liquid:liquid(body,500),slosh:0,squash:0,squeezeMarks:[]};
     }
     startPeel(strip) {
       const main=this.banana.body, group=Body.nextGroup(true);
@@ -150,7 +150,7 @@
             this.onEvent('peel'); return;
           }
         }
-        if(![...this.grabs.values()].some(g=>g.kind==='body'&&g.body===this.banana.body)&&
+        if([...this.grabs.values()].filter(g=>g.kind==='body'&&g.body===this.banana.body).length<2&&
           (distance(p,this.banana.body.position)<125 || Query.point([this.banana.body],p).length)) this.attach(actor,this.banana.body,p);
       }
       if(this.item==='bottle') {
@@ -163,7 +163,7 @@
           return;
         }
         if(b.cap && distance(p,b.cap.position)<34) {this.attach(actor,b.cap,p,'looseCap');return;}
-        if(![...this.grabs.values()].some(g=>g.kind==='body'&&g.body===b.body)&&
+        if([...this.grabs.values()].filter(g=>g.kind==='body'&&g.body===b.body).length<2&&
           (Query.point([b.body],p).length || distance(p,b.body.position)<85)) this.attach(actor,b.body,p);
       }
       if(this.item==='glass' && this.pane.broken) {
@@ -290,6 +290,45 @@
         }
       }
     }
+    updateMaterialResponse(dt) {
+      const update=(material,type)=>{
+        if(!material)return;
+        const holds=[...this.grabs.entries()].filter(([,g])=>g.kind==='body'&&g.body===material.body);
+        const contacts=holds.map(([id,grab])=>({grab,actor:this.actors.find(a=>a.id===id),point:grab.joint?.pointA||grab.goal||material.body.position}));
+        let target=0;
+        if(contacts.length>=2) {
+          const gap=distance(contacts[0].point,contacts[1].point);
+          // Two hands moving toward each other create the strongest, most stable squeeze.
+          target=clamp((132-gap)/94,0,.7);
+        }
+        for(const contact of contacts) {
+          if(contact.actor?.fist)target+=.18;
+          else if(contact.actor?.gripping)target+=.11;
+        }
+        target=clamp(target,0,.78);
+        const rate=target>material.squash?14:6;
+        material.squash+=((target-material.squash)*Math.min(1,dt*rate));
+        material.squash=clamp(material.squash,0,.78);
+        material.squeezeMarks=contacts.map(contact=>{
+          const p=local(material.body,contact.point);
+          const strength=clamp(material.squash*(contacts.length>1?.9:1.25),0,.86);
+          if(type==='banana') {
+            let t=0,nearest=Infinity;
+            for(let i=0;i<=36;i++) {const candidate=i/36,d=distance(p,bananaLine(candidate));if(d<nearest){nearest=d;t=candidate;}}
+            const frameA=bananaLine(Math.max(0,t-.012)),frameB=bananaLine(Math.min(1,t+.012)),length=Math.max(.001,distance(frameA,frameB));
+            const nx=-(frameB.y-frameA.y)/length,ny=(frameB.x-frameA.x)/length,center=bananaLine(t);
+            return {t,side:Math.sign((p.x-center.x)*nx+(p.y-center.y)*ny)||1,strength};
+          }
+          return {x:clamp(p.x,-43,43),y:clamp(p.y,-102,114),strength};
+        });
+        if(type==='banana') {
+          material.bruise=Math.max((material.bruise||0)*Math.exp(-dt*.035),material.squash*.82);
+          if(material.squeezeMarks.length&&material.squash>.14)material.bruiseMarks=material.squeezeMarks.map(mark=>({t:mark.t,side:mark.side,strength:Math.max(mark.strength*.72,.16)}));
+        }
+      };
+      update(this.banana,'banana');
+      update(this.bottle,'bottle');
+    }
     step(dt=1/60) {
       this.time+=dt;
       for(const g of this.grabs.values()) if(g.joint) {
@@ -307,6 +346,7 @@
         }
       }
       this.updatePeels();
+      this.updateMaterialResponse(dt);
       for(const shard of this.shards) if(!shard.released&&this.time>=shard.releaseAt) {
         shard.released=true;Body.setStatic(shard.body,false);Body.setVelocity(shard.body,shard.velocity);Body.setAngularVelocity(shard.body,shard.spin);
       }
@@ -322,7 +362,11 @@
       b.liquid=liquid(b.body,b.amount);
       b.slosh+=(clamp(-b.body.velocity.x*.015,-.12,.12)-b.slosh)*.05;
       const down=-Math.cos(b.body.angle), head=b.liquid.mouth.y-b.liquid.surface;
-      b.flow=b.open&&down>.08&&head>0&&b.amount>0 ? Math.min(b.amount/dt,clamp(18+Math.sqrt(head)*8,0,135)*down) : 0;
+      const gravityFlow=b.open&&down>.08&&head>0&&b.amount>0 ? clamp(18+Math.sqrt(head)*8,0,135)*down : 0;
+      // Compressing an open plastic bottle adds pressure, even before it is fully inverted.
+      const pressureTarget=b.open&&b.amount>0?clamp((b.squash-.14)*245,0,145):0;
+      b.pressure+=(pressureTarget-b.pressure)*Math.min(1,dt*12);
+      b.flow=Math.min(b.amount/dt,gravityFlow+b.pressure);
       const poured=b.flow*dt;
       b.amount=Math.max(0,b.amount-poured);b.poured+=poured;
       if(!b.body.isStatic&&poured>0)Body.setMass(b.body,b.dryMass+b.waterMass*b.amount/500);

@@ -52,10 +52,7 @@
     if(kind==='cardtear'){noiseSound(2100,.26,.24);tone(180,.08,.08,'square',90);}
   }
   const sim=new HandPhysics.Simulation(effect);
-  const assistant=new IntentAssistant(settings=>{
-    $('learningCount').textContent=settings?settings.successes+' confirmed actions · saved on this device':'Basic gestures still work. Local learner unavailable.';
-    $('intentStatus').textContent=settings?'AI training in background':'Assist unavailable';
-  });
+  const assistant=new IntentAssistant(()=>{});
   sim.onLearn=sample=>assistant.learn(sample);
   const menuGate=new HandIntent.MenuGate(),cursors=new Map(),cardGrips=new Map(),tornCards=new Map(),liftedCards=new Map(),floatingSources=new WeakMap(),cardPinchConsumed=new Set();
   let pairStarts=new WeakMap();
@@ -124,11 +121,6 @@
     if(pointer)active.push(pointer);
     assistant.update(active,sim,now);
     sim.setActors(active.slice(0,2));
-    if(assistant.available){
-      const held=Array.from(sim.grabs.values()).find(g=>g.kind==='peel'||g.kind==='cap');
-      const intent=active.find(a=>a.intent)?.intent;
-      $('intentStatus').textContent=held?(held.kind==='peel'?'Peeling — keep pulling':'Cap held — turn your wrist'):intent?'Likely: '+({peel:'peel strip',cap:'open cap',body:'hold object'}[intent.kind])+' · pinch':'AI training in background';
-    }
     $('cameraCount').textContent=cameraActors.filter(a=>performance.now()-a.seen<220).length+' / 2 HANDS';
   }
   function liftCard(button){
@@ -218,7 +210,7 @@
         if(beginCardGrip(actor,item,tip,now,menuInfo)){cardPinchConsumed.add(actor.id);activations.push(item);finishCardGrip(actor.id,now,false);}
       }else{
         actor.uiActive=!held&&!actor.fist&&Boolean(floating||under?.closest('.materials,.top-actions'));
-        button=actor.uiActive?(floating?floatingSources.get(floating):under?.closest('.materials .item-button:not(.torn),#resetButton,#undoTears,#soundButton,#forgetLearning')):null;hoverElement=floating||button;
+        button=actor.uiActive?(floating?floatingSources.get(floating):under?.closest('.materials .item-button:not(.torn),#resetButton,#undoTears,#soundButton')):null;hoverElement=floating||button;
         const target=button&&!button.disabled?(button.id||button.dataset.item):null;state=menuGate.update(actor.id,target,tip,actor.pinching,now,menuInfo?.confidence||0);
         if(button&&state.activate){if(menuInfo)assistant.learn({kind:'menu',features:menuInfo.features,success:true});activations.push(button);}
       }
@@ -377,7 +369,6 @@
   }));
   $('resetButton').addEventListener('click',()=>{audioReady();tone(320,.09);select(sim.item);});
   $('undoTears').addEventListener('click',undoTornCards);
-  $('forgetLearning').addEventListener('click',()=>{assistant.forget();audioReady();tone(320,.09);showToast('Local learning reset. No camera recordings are stored.');});
   $('cameraButton').addEventListener('click',startCamera);
   $('soundButton').addEventListener('click',()=>{muted=!muted;audioReady();if(master)master.gain.setTargetAtTime(muted?0:.38,audio.currentTime,.02);$('soundButton').textContent=muted?'Sound off':'Sound on';$('soundButton').setAttribute('aria-pressed',String(!muted));});
   $('fullscreenButton').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{showToast('Fullscreen is unavailable in this browser.');}});

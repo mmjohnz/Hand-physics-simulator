@@ -15,7 +15,7 @@
     <div class="intro-title" role="heading" aria-level="1"><span>HAND</span><span>PHYSICS</span><span>SIMULATOR</span></div>
     <div class="intro-rule"><i></i></div>
     <p class="intro-credit">MADE BY <strong>MMZ</strong></p>
-    <small>TWO HANDS · REAL-TIME PHYSICS · ON-DEVICE INTENT</small>
+    <small>TWO HANDS · REAL-TIME PHYSICS · MATERIAL RESPONSE</small>
   </section>
   <canvas id="stage" aria-label="Hand-controlled physical objects"></canvas>
   <canvas id="handLayer" aria-hidden="true"></canvas>
@@ -54,7 +54,6 @@
     <div class="object-state"><span>OBJECT STATE</span><output id="objectStatus">Mounted pane</output><meter id="waterMeter" min="0" max="500" value="500" hidden aria-label="Water remaining"></meter></div>
     <button class="reset-button" id="resetButton">↻ Reset object</button>
     <button class="undo-button" id="undoTears" disabled>↶ Undo torn cards</button>
-    <div class="intent-panel"><span>ON-DEVICE INTENT ASSIST</span><output id="intentStatus" aria-live="polite">AI training in background…</output><small id="learningCount">Learns your targeting and click timing from completed actions.</small><button id="forgetLearning" type="button">Reset learning</button></div>
     <div class="instructions"><span>WITH YOUR HANDS</span><p id="instructionsText">Close your fist and strike through the pane. A light touch will not break it.</p></div>
     <details class="pointer-help"><summary>Try with a mouse</summary><p id="pointerHelp">Click the pane to strike it. Drag fallen fragments to pick them up.</p></details>
   </aside>

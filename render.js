@@ -55,13 +55,19 @@
   function bananaSamples(start=0,end=1,offset=0) {
     return Array.from({length:36},(_,i)=>{const p=bananaLine(start+(end-start)*i/35);return {x:p.x+offset,y:p.y};});
   }
-  function bananaWidth(t) { return 13+39*Math.pow(Math.sin(Math.PI*t),.6); }
+  function bananaWidth(t,b=null) {
+    const base=13+39*Math.pow(Math.sin(Math.PI*t),.6);
+    if(!b)return base;
+    const contact=(b.squeezeMarks||[]).reduce((sum,mark)=>sum+mark.strength*Math.exp(-Math.pow((t-mark.t)/.105,2)),0);
+    // A soft fruit narrows directly under a grip and keeps a little volume nearby.
+    return base*(1-clamp(contact*.46+(b.squash||0)*.06,0,.54));
+  }
   function bananaFrame(t) {
     const p=bananaLine(t),a=bananaLine(Math.max(0,t-.012)),b=bananaLine(Math.min(1,t+.012)),len=Math.max(.001,distance(a,b));
     return {p,nx:-(b.y-a.y)/len,ny:(b.x-a.x)/len};
   }
-  function biteMark(ctx,mark) {
-    const frame=bananaFrame(mark.t),width=bananaWidth(mark.t),side=mark.side,edge={x:frame.p.x+frame.nx*width*.48*side,y:frame.p.y+frame.ny*width*.48*side};
+  function biteMark(ctx,mark,b) {
+    const frame=bananaFrame(mark.t),width=bananaWidth(mark.t,b),side=mark.side,edge={x:frame.p.x+frame.nx*width*.48*side,y:frame.p.y+frame.ny*width*.48*side};
     const center={x:edge.x+frame.nx*width*.3*side,y:edge.y+frame.ny*width*.3*side},radius=width*.68;
     ctx.beginPath();ctx.arc(center.x,center.y,radius,0,Math.PI*2);ctx.fill();
     return {center,radius};
@@ -71,14 +77,14 @@
     transformed(ctx,b.body,()=>{
       const flesh=ctx.createLinearGradient(-30,0,94,0);
       flesh.addColorStop(0,'#bdb284');flesh.addColorStop(.28,'#f7edc7');flesh.addColorStop(.6,'#fffae0');flesh.addColorStop(1,'#c6b78d');
-      ribbon(ctx,bananaSamples(),bananaWidth,flesh);
+      ribbon(ctx,bananaSamples(),t=>bananaWidth(t,b),flesh);
       for(let s=0;s<3;s++) {
         const strip=b.strips[s]; if(strip.detached)continue;
         const start=strip.progress;
         const gradient=ctx.createLinearGradient(-45,0,100,0);
         gradient.addColorStop(0,'#74782b');gradient.addColorStop(.3,'#c9b847');gradient.addColorStop(.58,'#eed45b');gradient.addColorStop(.76,'#e2c545');gradient.addColorStop(1,'#987421');
         const pts=bananaSamples(start,1,(s-1)*13);
-        ribbon(ctx,pts,t=>bananaWidth(start+(1-start)*t)*.43,gradient);
+        ribbon(ctx,pts,t=>bananaWidth(start+(1-start)*t,b)*.43,gradient);
         ctx.strokeStyle='rgba(133,110,32,.28)';ctx.lineWidth=.8;path(ctx,pts,false);ctx.stroke();
       }
       if(b.strips.some(s=>!s.active)) {
@@ -89,16 +95,26 @@
       // Stable freckles, not frame-random noise.
       for(let i=0;i<65;i++) {
         const t=((i*47)%67)/67,strip=b.strips[i%3];if(t<strip.progress)continue;
-        const p=bananaLine(t),off=Math.sin(i*9.4)*bananaWidth(t)*.28;
+        const p=bananaLine(t),off=Math.sin(i*9.4)*bananaWidth(t,b)*.28;
         ctx.fillStyle=`rgba(86,66,20,${.12+(i%3)*.08})`;ctx.beginPath();ctx.ellipse(p.x+off,p.y,.7+(i%3)*.35,.6+(i%2)*.6,.4,0,Math.PI*2);ctx.fill();
+      }
+      if(b.bruiseMarks?.length&&b.bruise>.02) {
+        ctx.save();
+        for(const mark of b.bruiseMarks) {
+          const frame=bananaFrame(mark.t),width=bananaWidth(mark.t,b),center={x:frame.p.x+frame.nx*width*.23*mark.side,y:frame.p.y+frame.ny*width*.23*mark.side};
+          const spread=width*(.28+mark.strength*.22),shade=ctx.createRadialGradient(center.x,center.y,1,center.x,center.y,spread);
+          shade.addColorStop(0,'rgba(105,73,30,.38)');shade.addColorStop(.62,'rgba(124,88,35,.16)');shade.addColorStop(1,'rgba(124,88,35,0)');
+          ctx.globalAlpha=clamp(.24+b.bruise*.55,0,.72);ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(center.x,center.y,spread*.72,spread,Math.atan2(frame.ny,frame.nx),0,Math.PI*2);ctx.fill();
+        }
+        ctx.restore();
       }
       const end=bananaLine(1);ctx.fillStyle='#695a2f';ctx.beginPath();ctx.ellipse(end.x,end.y,7,4,-.5,0,Math.PI*2);ctx.fill();
       if(b.biteMarks?.length){
         ctx.save();ctx.globalCompositeOperation='destination-out';
-        for(const mark of b.biteMarks)biteMark(ctx,mark);
+        for(const mark of b.biteMarks)biteMark(ctx,mark,b);
         ctx.restore();
         ctx.save();ctx.strokeStyle='rgba(255,239,184,.9)';ctx.lineWidth=2;
-        for(const mark of b.biteMarks){const frame=bananaFrame(mark.t),width=bananaWidth(mark.t),side=mark.side,edge={x:frame.p.x+frame.nx*width*.48*side,y:frame.p.y+frame.ny*width*.48*side};ctx.beginPath();ctx.arc(edge.x,edge.y,width*.36,0,Math.PI*2);ctx.stroke();}
+        for(const mark of b.biteMarks){const frame=bananaFrame(mark.t),width=bananaWidth(mark.t,b),side=mark.side,edge={x:frame.p.x+frame.nx*width*.48*side,y:frame.p.y+frame.ny*width*.48*side};ctx.beginPath();ctx.arc(edge.x,edge.y,width*.36,0,Math.PI*2);ctx.stroke();}
         ctx.restore();
       }
     });
@@ -147,6 +163,16 @@
       }
       ctx.strokeStyle='rgba(240,254,255,.54)';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-32,-67);ctx.bezierCurveTo(-38,-25,-38,78,-32,113);ctx.stroke();
       ctx.strokeStyle='rgba(212,239,246,.13)';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(33,-54);ctx.lineTo(33,111);ctx.stroke();ctx.restore();
+      if(b.squeezeMarks?.length&&b.squash>.02) {
+        ctx.save();bottlePath(ctx);ctx.clip();
+        for(const mark of b.squeezeMarks) {
+          const radius=17+mark.strength*26,indent=ctx.createRadialGradient(mark.x,mark.y,1,mark.x,mark.y,radius);
+          indent.addColorStop(0,'rgba(15,58,78,.42)');indent.addColorStop(.42,'rgba(69,125,151,.18)');indent.addColorStop(1,'rgba(219,247,255,0)');
+          ctx.fillStyle=indent;ctx.beginPath();ctx.ellipse(mark.x,mark.y,radius*.58,radius,0,0,Math.PI*2);ctx.fill();
+          ctx.strokeStyle=`rgba(227,249,255,${.2+mark.strength*.35})`;ctx.lineWidth=1.1;ctx.beginPath();ctx.ellipse(mark.x-mark.strength*4,mark.y,radius*.54,radius*.88,0,Math.PI*.55,Math.PI*1.45);ctx.stroke();
+        }
+        ctx.restore();
+      }
       ctx.strokeStyle='rgba(216,243,249,.67)';ctx.lineWidth=1;
       for(let y=-138;y<-112;y+=5){ctx.beginPath();ctx.moveTo(-24,y);ctx.lineTo(24,y-1);ctx.stroke();}
       ctx.fillStyle='rgba(180,222,237,.34)';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('500 mL',0,64);

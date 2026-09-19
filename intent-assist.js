@@ -25,11 +25,6 @@
       }catch{this.onStatus(null);}
     }
     resetScene(){this.epoch++;this.scored.clear();this.history.clear();this.menuHistory.clear();}
-    forget(){
-      this.generation++;this.resetScene();this.settings={radius:56,pinch:.42,actions:0,successes:0};
-      try{localStorage.removeItem(storageKey);}catch{}
-      this.worker?.postMessage({type:'init',generation:this.generation,saved:null});this.onStatus(this.settings);
-    }
     learn(sample){if(this.available)this.worker.postMessage({type:'learn',generation:this.generation,sample});}
     menuIntent(id,target,point,rect,now){
       const key=target.id||target.dataset.item||'control',previous=this.menuHistory.get(id),dt=previous?Math.max(.012,(now-previous.time)/1000):.03;

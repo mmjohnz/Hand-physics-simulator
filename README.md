@@ -16,8 +16,8 @@ Open http://localhost:4173. An animated **Hand Physics Simulator — made by MMZ
 ## Objects
 
 - **Glass pane:** strike the mounted sheet with a moving fist. The fracture divides the pane into irregular polygon shards. Each piece falls, rotates and collides with the floor and other pieces. Pinch a fallen piece to pick it up.
-- **Banana:** hold the body with one hand. Pinch the stem with your other hand and pull away to remove one of three separate peel strips. Each strip is a chain of physical joints. As you pull, its attachments release progressively; the detached strip bends and falls. Repeat for the remaining strips.
-- **Water bottle:** hold the body with one hand. Pinch the cap and turn your other wrist clockwise to unscrew it. Release the cap, grab the bottle, and rotate your wrist to turn its mouth down. Water only leaves an open, inverted bottle with water at the mouth. It starts at 500 ml, loses water and mass while pouring, and stops when empty or upright.
+- **Banana:** hold the body with one or two hands. Pinch the stem with your other hand and pull away to remove one of three separate peel strips. Squeeze the fruit to make it compress under your grip; a hard squeeze leaves a subtle bruise. Each strip is a chain of physical joints. As you pull, its attachments release progressively; the detached strip bends and falls. Repeat for the remaining strips.
+- **Water bottle:** hold the body with one or two hands. Pinch the cap and turn your other wrist clockwise to unscrew it. Release the cap, grab the bottle, and rotate your wrist to turn its mouth down. The plastic dents under a squeeze. An open, hard-squeezed bottle also forces a small amount of water from its mouth; inversion gives a normal gravity pour. It starts at 500 ml, loses water and mass while pouring, and stops when empty.
 
 ## Mouth interactions
 
@@ -45,19 +45,15 @@ Camera-tracked hands render above the cards, so fingers stay visible while point
 
 ## Physics and rendering
 
-This is a 2D simulation, with shaded canvas drawings, not a scanned hand mesh or a full 3D fluid solver. Matter.js handles rigid-body collisions, momentum, spring grabs, and articulated joints in the hands and peels. The bottle's fluid uses a volume-conserving horizontal free surface clipped to the rotated vessel; escaping droplets follow gravity and form a splash/puddle.
+This is a 2D simulation, with shaded canvas drawings, not a scanned hand mesh or a full 3D fluid solver. Matter.js handles rigid-body collisions, momentum, spring grabs, and articulated joints in the hands and peels. A soft-material response layer adds localized banana compression, persistent bruising, and bottle dents without breaking those stable collisions. The bottle's fluid uses a volume-conserving horizontal free surface clipped to the rotated vessel; escaping droplets follow gravity and form a splash/puddle.
 
 Hand tracking and mouth landmarks use pretrained MediaPipe models. Up to two detected hands are matched across frames, and one face supplies mouth position and openness. Turning a wrist in the camera plane rotates a held object. Occlusion and camera angle can affect tracking; tracking loss releases held objects.
 
-## Hands-only selection and local learning
+## Hands-only selection
 
-After enabling the camera, point your index fingertip at Glass pane, Banana, or Water bottle. Pinch after briefly hovering, or hold still for one second to select. A light-blue ring shows selection progress. Release an object before selecting another. Reset and sound also work with your hand; resets use a longer hold. Browser security still requires a real click/tap to enable the camera or enter fullscreen.
+After enabling the camera, point your index fingertip at Glass pane, Banana, or Water bottle. Pinch after briefly hovering to select. A light-blue ring shows selection progress. Release an object before selecting another. Reset and sound also work with your hand; resets use a longer hold. Browser security still requires a real click/tap to enable the camera or enter fullscreen.
 
 The hands have fuller fingers, wrists, and subtle palm shading. The banana stem has a forgiving grab area; pulling about 190 logical stage units removes a strip. Small pinch-detection interruptions are buffered for 90 ms. Re-grab a partly peeled strip at its loose end.
-
-A small online logistic classifier runs in a Web Worker. It estimates menu click versus card drag/tear intent as well as hold/peel/cap intent from proximity, approach, hover, stillness, centering, pinch strength, and whether the other hand is holding the object. Successful single-pinch clicks and completed physical actions provide positive examples; deliberate card movement and abandoned attempts provide negative examples. Learned confidence shortens the click response and adjusts bounded grab assistance. It never performs a peel or twist for you.
-
-Only numeric model weights and aggregate calibration statistics are saved in this browser's local storage. No video, images, or hand-motion recordings are stored or sent to an AI server. **Reset learning** clears the learned profile. The MediaPipe tracker itself is not retrained; this lightweight intent assistant is not a general-purpose AI or a guarantee of recognizing every intention. Basic interactions remain available if the worker fails.
 
 ## Verification
 

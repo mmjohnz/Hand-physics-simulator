@@ -50,7 +50,7 @@
       if(!target){this.hands.delete(id);return {progress:0,activate:false};}
       if(!state||state.target!==target){state={target,entered:now,origin:{...point},wasPinching:pinching,fired:false};this.hands.set(id,state);}
       if(Math.hypot(point.x-state.origin.x,point.y-state.origin.y)>28&&!state.fired){state.entered=now;state.origin={...point};}
-      const dwell=target==='resetButton'||target==='forgetLearning'?1250:Math.round(820-clamp(confidence,0,1)*300);
+      const dwell=target==='resetButton'?1250:Math.round(820-clamp(confidence,0,1)*300);
       const elapsed=now-state.entered,edge=pinching&&!state.wasPinching;
       const clickDelay=confidence>.62?24:55;
       const activate=!state.fired&&now>=this.cooldownUntil&&((edge&&elapsed>=clickDelay)||(!pinching&&elapsed>=dwell));

@@ -48,12 +48,31 @@ test('banana bites require peeling first and remove the fruit after four deliber
   assert.equal(s.banana.eaten,true);assert.equal(s.status(),'Banana eaten');
   assert.equal(s.eatBanana().ok,false);
 });
+test('two hands squeeze a banana, leaving a soft dent and a lingering bruise',()=>{
+  const s=new P.Simulation();s.select('banana');const b=s.banana;
+  M.Body.setStatic(b.body,true);
+  const left={x:b.body.position.x-22,y:b.body.position.y},right={x:b.body.position.x+22,y:b.body.position.y};
+  s.setActors([actor('left',left,{fist:true}),actor('right',right,{fist:true})]);advance(s,24);
+  assert.equal([...s.grabs.values()].filter(g=>g.body===b.body).length,2);
+  assert.ok(b.squash>.45);assert.equal(b.squeezeMarks.length,2);assert.equal(b.bruiseMarks.length,2);
+  const bruise=b.bruise;s.setActors([]);advance(s,48);
+  assert.ok(b.squash<.08);assert.ok(b.bruise>=bruise*.9);
+});
 test('drinking is cap-gated and preserves all finite bottle water',()=>{
   const s=new P.Simulation();s.select('bottle');const b=s.bottle;
   assert.equal(s.drinkBottle().ok,false);assert.equal(b.amount,500);
   b.open=true;assert.equal(s.drinkBottle(90).ok,true);assert.equal(b.amount,410);assert.equal(b.drunk,90);
   s.drinkBottle(1000);assert.equal(b.amount,0);assert.equal(b.drunk,500);
   assert.ok(Math.abs(b.amount+b.poured+b.drunk-500)<1e-6);
+});
+test('squeezing an open bottle dents it and pushes out a finite amount of water',()=>{
+  const s=new P.Simulation();s.select('bottle');const b=s.bottle;
+  M.Body.setStatic(b.body,true);b.open=true;
+  const left={x:b.body.position.x-22,y:b.body.position.y},right={x:b.body.position.x+22,y:b.body.position.y},before=b.amount;
+  s.setActors([actor('left',left,{fist:true}),actor('right',right,{fist:true})]);advance(s,60);
+  assert.equal([...s.grabs.values()].filter(g=>g.body===b.body).length,2);
+  assert.ok(b.squash>.45);assert.equal(b.squeezeMarks.length,2);assert.ok(b.pressure>0);assert.ok(b.amount<before);
+  assert.ok(Math.abs(b.amount+b.poured-500)<1e-6);
 });
 
 test('gentle contact leaves glass intact; impact creates polygon shards which fall and collide',()=>{
