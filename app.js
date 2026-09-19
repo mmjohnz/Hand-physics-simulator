@@ -57,6 +57,7 @@
   const menuGate=new HandIntent.MenuGate(),cursors=new Map(),cardGrips=new Map(),tornCards=new Map(),liftedCards=new Map(),floatingSources=new WeakMap(),cardPinchConsumed=new Set();
   let pairStarts=new WeakMap();
   let cameraOn=false,starting=false,model=null,modelKind='',modelPromise=null,faceModel=null,facePromise=null,visionRuntimePromise=null,stream=null,session=0;
+  const macPerformance=/Macintosh|Mac OS X/i.test(navigator.userAgent),handInterval=macPerformance?45:32,faceInterval=macPerformance?135:95;
   let cameraActors=[],nextHandId=1,lastDetection=0,inferenceBusy=false,faceBusy=false,lastHandSend=0,lastFaceSend=0;
   let mouth=null,mouthBloody=false,mouthContact=false,mouthBiteArmed=false;
   let pointer=null,toastTimer=0,oldStatus='';
@@ -261,7 +262,7 @@
     lastDetection=now;syncActors();drawOverlay(detections);
   }
   function drawOverlay(hands) {
-    const rect=overlay.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
+    const rect=overlay.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,1.5);
     if(overlay.width!==Math.round(rect.width*dpr)){overlay.width=Math.round(rect.width*dpr);overlay.height=Math.round(rect.height*dpr);}
     overlayCtx.setTransform(dpr,0,0,dpr,0,0);overlayCtx.clearRect(0,0,rect.width,rect.height);
     const aspect=(video.videoWidth||1280)/(video.videoHeight||720);
@@ -298,7 +299,7 @@
         modelKind='legacy-test-adapter';model=new window.Hands();model.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.65,minTrackingConfidence:.65,selfieMode:false});model.onResults(acceptResults);await model.initialize();return;
       }
       const {vision,files}=await loadVisionRuntime();modelKind='tasks';
-      model=await vision.HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:'CPU'},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.65,minHandPresenceConfidence:.6,minTrackingConfidence:.65});
+      model=await createVisionTask(vision.HandLandmarker,files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.65,minHandPresenceConfidence:.6,minTrackingConfidence:.65});
       const probe=document.createElement('canvas');probe.width=16;probe.height=16;model.detectForVideo(probe,1);
     })().catch(error=>{modelPromise=null;model=null;throw error;});
     return modelPromise;
@@ -307,22 +308,26 @@
     if(facePromise)return facePromise;
     facePromise=(async()=>{
       const {vision,files}=await loadVisionRuntime();
-      faceModel=await vision.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',delegate:'CPU'},runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.6,minFacePresenceConfidence:.6,minTrackingConfidence:.6,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:false});
+      faceModel=await createVisionTask(vision.FaceLandmarker,files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'},runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.6,minFacePresenceConfidence:.6,minTrackingConfidence:.6,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:false});
       const probe=document.createElement('canvas');probe.width=16;probe.height=16;faceModel.detectForVideo(probe,1);
       $('trackedMouth').dataset.model='ready';
     })().catch(error=>{facePromise=null;faceModel=null;$('trackedMouth').dataset.model='error';throw error;});
     return facePromise;
   }
+  async function createVisionTask(factory,files,options) {
+    const preferred=macPerformance?'GPU':'CPU',create=delegate=>factory.createFromOptions(files,{...options,baseOptions:{...options.baseOptions,delegate}});
+    try{return await create(preferred);}catch(error){if(preferred!=='GPU')throw error;return create('CPU');}
+  }
   async function cameraFrame(generation) {
     if(!cameraOn||generation!==session)return;
     const frameTime=performance.now();
-    if(faceModel&&!faceBusy&&video.readyState>=2&&frameTime-lastFaceSend>80){
+    if(faceModel&&!faceBusy&&video.readyState>=2&&frameTime-lastFaceSend>faceInterval){
       faceBusy=true;lastFaceSend=frameTime;
       try{const result=faceModel.detectForVideo(video,frameTime);acceptFaceResults({multiFaceLandmarks:result.faceLandmarks||[]});}
       catch{faceModel=null;mouth=null;$('trackedMouth').hidden=true;showToast('Mouth tracking stopped; hand controls still work.');}
       finally{faceBusy=false;}
     }
-    if(!inferenceBusy&&video.readyState>=2&&frameTime-lastHandSend>28) {
+    if(!inferenceBusy&&video.readyState>=2&&frameTime-lastHandSend>handInterval) {
       inferenceBusy=true;
       lastHandSend=frameTime;
       try{
@@ -342,7 +347,7 @@
     try {
       if(!navigator.mediaDevices?.getUserMedia)throw new Error('Open this page on localhost or HTTPS to use the camera.');
       await loadModel();
-      stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false});
+      stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960,max:1280},height:{ideal:540,max:720},facingMode:'user'},audio:false});
       video.srcObject=stream;await video.play();cameraOn=true;session++;
       $('cameraPlaceholder').classList.add('hidden');video.classList.add('visible');$('systemDot').classList.add('active');
       $('systemText').textContent='TWO HANDS + MOUTH';$('cameraButtonText').textContent='Disable camera';

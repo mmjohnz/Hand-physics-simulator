@@ -255,7 +255,7 @@
   class Renderer {
     constructor(canvas) {this.canvas=canvas;this.ctx=canvas.getContext('2d');this.resize();}
     resize() {
-      this.width=innerWidth;this.height=innerHeight;const dpr=Math.min(devicePixelRatio||1,2);
+      this.width=innerWidth;this.height=innerHeight;const dpr=Math.min(devicePixelRatio||1,1.5);
       this.canvas.width=this.width*dpr;this.canvas.height=this.height*dpr;this.dpr=dpr;
       const right=this.width>850?256:0,top=85,bottom=this.width>850?40:210;
       this.scale=Math.max(.18,Math.min((this.width-right-24)/1200,(this.height-top-bottom)/760));
@@ -285,7 +285,7 @@
       if(sim.flash>0){ctx.fillStyle=`rgba(230,248,255,${sim.flash*.19})`;ctx.fillRect(0,0,1200,760);}
     }
     drawHands(sim,canvas) {
-      const dpr=Math.min(devicePixelRatio||1,2),width=innerWidth,height=innerHeight;
+      const dpr=Math.min(devicePixelRatio||1,1.5),width=innerWidth,height=innerHeight;
       if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
       const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
       ctx.translate(this.x,this.y);ctx.scale(this.scale,this.scale);

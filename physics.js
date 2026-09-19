@@ -351,8 +351,7 @@
         shard.released=true;Body.setStatic(shard.body,false);Body.setVelocity(shard.body,shard.velocity);Body.setAngularVelocity(shard.body,shard.spin);
       }
       // Small substeps stabilize impacts and the articulated peel strands.
-      Engine.update(this.engine,dt*500);
-      Engine.update(this.engine,dt*500);
+      Engine.update(this.engine,dt*1000);
       this.flash=Math.max(0,this.flash-dt*4);this.shake*=Math.exp(-dt*13);
       if(this.bottle) this.updateWater(dt);
       this.updateDrops(dt);
