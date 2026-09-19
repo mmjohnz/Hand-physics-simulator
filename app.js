@@ -272,10 +272,21 @@
   async function loadVisionRuntime(){
     if(visionRuntimePromise)return visionRuntimePromise;
     visionRuntimePromise=(async()=>{
-      const runtimeVersion='0.10.35',vision=window.MediaPipeVision||await import('./node_modules/@mediapipe/tasks-vision/vision_bundle.mjs?v='+runtimeVersion),files=await vision.FilesetResolver.forVisionTasks(new URL('./node_modules/@mediapipe/tasks-vision/wasm',location.href).href);
-      if(files.wasmLoaderPath)files.wasmLoaderPath+=(files.wasmLoaderPath.includes('?')?'&':'?')+'v='+runtimeVersion;
-      if(files.wasmBinaryPath)files.wasmBinaryPath+=(files.wasmBinaryPath.includes('?')?'&':'?')+'v='+runtimeVersion;
-      return {vision,files};
+      const runtimeVersion='0.10.35',cdnBase='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+runtimeVersion,unpkgBase='https://unpkg.com/@mediapipe/tasks-vision@'+runtimeVersion;
+      const local={bundle:new URL('./node_modules/@mediapipe/tasks-vision/vision_bundle.mjs',location.href).href,wasm:new URL('./node_modules/@mediapipe/tasks-vision/wasm',location.href).href};
+      const remote=[{bundle:cdnBase+'/vision_bundle.mjs',wasm:cdnBase+'/wasm'},{bundle:unpkgBase+'/vision_bundle.mjs',wasm:unpkgBase+'/wasm'}];
+      const sources=location.hostname.endsWith('github.io')?remote:[local,...remote];
+      let lastError;
+      for(const source of sources) {
+        try {
+          const vision=window.MediaPipeVision||await import(source.bundle+'?v='+runtimeVersion);
+          const files=await vision.FilesetResolver.forVisionTasks(source.wasm);
+          if(files.wasmLoaderPath)files.wasmLoaderPath+=(files.wasmLoaderPath.includes('?')?'&':'?')+'v='+runtimeVersion;
+          if(files.wasmBinaryPath)files.wasmBinaryPath+=(files.wasmBinaryPath.includes('?')?'&':'?')+'v='+runtimeVersion;
+          return {vision,files};
+        } catch(error) { lastError=error; }
+      }
+      throw lastError||new Error('MediaPipe runtime could not be loaded.');
     })().catch(error=>{visionRuntimePromise=null;throw error;});
     return visionRuntimePromise;
   }
